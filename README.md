@@ -1,3 +1,7 @@
+**Disclaimer:** This tool is now deprecated as Claude offers native GitHub integration.
+
+---
+
 # GDrive Repo Sync
 
 - Clones repositories, processes contents into docx files, and syncs to Google Drive
