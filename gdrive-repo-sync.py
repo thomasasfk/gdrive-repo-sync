@@ -1,10 +1,18 @@
 #!/usr/bin/env python3
+# /// script
+# requires-python = ">=3.13"
+# dependencies = [
+#     "python-docx",
+# ]
+# ///
 import os
 import json
 import subprocess
 import fnmatch
 import argparse
 from pathlib import Path
+
+from docx import Document
 
 WORKSPACE_DIR = "workspace"
 OUTPUT_DIR = "output"
@@ -39,7 +47,7 @@ def should_ignore_file(file_path, repo_path, gitignore_patterns, excluded_extens
     return False
 
 
-def process_repo(repo_url, max_lines, excluded_extensions, debug=False):
+def process_repo(repo_url, max_lines, excluded_extensions):
     repo_name = repo_url.split("/")[-1].replace(".git", "")
     repo_path = Path(WORKSPACE_DIR) / repo_name
 
@@ -50,7 +58,14 @@ def process_repo(repo_url, max_lines, excluded_extensions, debug=False):
         run_cmd(["git", "pull", "-f"], cwd=str(repo_path))
 
     gitignore_patterns = get_gitignore_patterns(repo_path)
-    content = []
+    doc = Document()
+
+    doc.add_heading(f"Repository: {repo_name}", level=0)
+
+    doc.add_heading("Table of Contents", level=1)
+    toc = doc.add_paragraph()
+
+    file_list = []
 
     for file_path in repo_path.glob('**/*'):
         if not file_path.is_file():
@@ -59,22 +74,33 @@ def process_repo(repo_url, max_lines, excluded_extensions, debug=False):
         if should_ignore_file(str(file_path), str(repo_path), gitignore_patterns, excluded_extensions):
             continue
 
-        try:
-            line_count = sum(1 for _ in open(file_path, "r", encoding="utf-8", errors="ignore"))
-            if line_count > max_lines:
-                continue
-
-            with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
-                file_content = f.read()
-
-            rel_path = file_path.relative_to(repo_path)
-            content.append(f"# {rel_path}\n```\n{file_content}\n```\n\n")
-        except:
+        line_count = sum(1 for _ in open(file_path, "r", encoding="utf-8", errors="ignore"))
+        if line_count > max_lines:
             continue
 
+        rel_path = file_path.relative_to(repo_path)
+        file_list.append(str(rel_path))
+
+    for file_path in file_list:
+        toc.add_run(f"• {file_path}\n")
+
+    doc.add_page_break()
+
+    for file_path_str in file_list:
+        file_path = repo_path / file_path_str
+
+        with open(file_path, "r", encoding="utf-8", errors="ignore") as f:
+            file_content = f.read()
+
+        doc.add_heading(file_path_str, level=1)
+
+        p = doc.add_paragraph()
+        p.add_run(file_content)
+
+        doc.add_page_break()
+
     os.makedirs(OUTPUT_DIR, exist_ok=True)
-    with open(Path(OUTPUT_DIR) / f"{repo_name}.md", "w", encoding="utf-8") as f:
-        f.write("".join(content))
+    doc.save(str(Path(OUTPUT_DIR) / f"{repo_name}.docx"))
 
     return repo_name
 
@@ -82,8 +108,9 @@ def process_repo(repo_url, max_lines, excluded_extensions, debug=False):
 def sync_to_gdrive():
     subprocess.run(
         [
-            "rclone", "sync", OUTPUT_DIR, f"{GDRIVE_REMOTE}:repo-docs"
-        ], check=False
+            "rclone", "copy", "--drive-import-formats",
+            "docx", OUTPUT_DIR, f"{GDRIVE_REMOTE}:repo-docs"
+        ]
     )
 
 
@@ -112,7 +139,7 @@ def main():
     for repo_url in repos:
         if args.debug:
             print(f"Processing {repo_url}")
-        process_repo(repo_url, args.max_lines, excluded_extensions, args.debug)
+        process_repo(repo_url, args.max_lines, excluded_extensions)
 
     if not args.no_sync:
         if args.debug:

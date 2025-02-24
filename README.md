@@ -1,6 +1,7 @@
 # GDrive Repo Sync
 
-- Clones repositories, processes contents into markdown files, and syncs to Google Drive
+- Clones repositories, processes contents into docx files, and syncs to Google Drive
+- Creates Google Drive-compatible documents that Claude can read for use with Claude projects
 - Requires rclone installed and configured with a Google Drive remote named "gdrive"
 
 ## Usage
@@ -22,4 +23,10 @@ options:
   "https://github.com/username/repo1.git",
   "https://github.com/username/repo2.git"
 ]
+```
+
+## Use with uv
+
+```bash
+uv run gdrive-repo-sync.py
 ```
